@@ -1,0 +1,219 @@
+/*  Dispositivo personal de seguridad PIKBIK
+ *  
+ *  Control de bloqueo/desbloqueo de dispositivo y sistema de alerta personal.
+ *  
+ *  USO:
+ *  
+ */
+
+
+////****LIBRERÍAS****////
+#include "I2Cdev.h"
+#include "MPU6050.h"
+#include "Wire.h"
+#include <SoftwareSerial.h>
+
+SoftwareSerial mySerial(10, 11); // RX, TX
+
+//String letra;   //Declare a String variable to hold your name
+//String hola;
+//int age;         //Declare an Int variable to hold your age
+//float height;    //Declare a float variable to hold your height
+
+char letra;       //caracter recivido
+int val=0;        //Bandera de codificación
+int i=0;          //Indice de cadena
+char cadena[10];  //Cadena SMS
+
+int ax, ay, az;           //Aceleración actual
+int axA=120, ayA=120, azA=120;  //Aceleración anterior
+
+float promedio;   //Aceleración prom actual
+float promedioAnt;//Aceleración prom anterior
+
+const int mpuAddress = 0x68;  // Puede ser 0x68 o 0x69
+MPU6050 mpu(mpuAddress);
+
+void setup()
+{
+  pinMode(13, OUTPUT);
+  // Open serial communications to computer
+  Serial.begin(9600);
+  mySerial.begin(115200);   
+  //Clear out any waiting serial data
+  while (mySerial.available())
+  {
+    mySerial.read();
+  }  
+
+  Serial.write("Iniciando cambio de frecuencia\r");
+    
+    mySerial.write("AT\r");
+    delay(500);
+    mySerial.write("AT\r");
+    delay(500);
+    mySerial.write("AT\r");
+    delay(500);
+    mySerial.write("AT+IPR=9600\r");
+    delay(500);
+    Serial.write("Nueva freciencia: 9600\r");
+
+  mySerial.begin(9600);
+
+  delay(2000);
+  Wire.begin();
+  mpu.initialize();
+  Serial.println(mpu.testConnection() ? F("IMU iniciado correctamente") : F("Error al iniciar IMU"));
+
+  Inicializacion();
+}
+
+void loop()
+{
+  /*
+   * This loop just takes whatever comes in from the console and sends it to the board
+   */
+  if (Serial.available())
+  {
+    mySerial.write(Serial.read());
+  }
+  if (mySerial.available())
+  {
+    letra = mySerial.read();
+    Serial.write(letra);
+    
+    RecepcionSMSCodificado();
+
+    if (VerificarON() == true){
+      digitalWrite(13, HIGH);
+    }
+    else if (VerificarOFF() == true){
+      digitalWrite(13, LOW);
+    }
+    
+    if (letra=='m'){
+      Serial.print("\n String almacenado: ");
+      Serial.print(cadena);
+      Serial.print("\n");
+    }
+  }
+  while(!mySerial.available()){
+    //Obtener aceleración en los 3 ejes
+    mpu.getAcceleration(&ax, &ay, &az);
+    //Calcular aceleración instantánea y anterior
+    if (VerificarOFF() == true){
+      AnalisisAlerta();
+    }
+  }
+  
+}
+
+
+////****FUNCIONES****////
+
+void Inicializacion(){
+  //Envio comandos de prueba para evitar errores iniciales
+  mySerial.write("AT\r");
+  delay(500);
+  mySerial.write("AT\r");
+  delay(500);
+  mySerial.write("AT\r");
+  delay(500);
+  //Configura visualización en formato "texto" de SMS recividos
+  mySerial.write("AT+CMGF=1\r");
+  delay(500);
+}
+
+bool VerificarON(){
+  //Verificación SMS recivido ON/OFF
+  //Retorna 1 si es ONN y 2 si es OFF, sino 0
+    if(cadena[0]=='O'){
+      if(cadena[1]=='N'){
+        return true;
+      }
+      else{
+        return false;
+      }
+    }
+}
+
+bool VerificarOFF(){
+  //Verificación SMS recivido ON/OFF
+  //Retorna 1 si es ONN y 2 si es OFF, sino 0
+    if(cadena[0]=='O'){
+      if (cadena[1]=='F'){
+        if(cadena[2]=='F'){
+          return true;
+          digitalWrite(13, LOW);
+          digitalWrite(12, LOW);
+        }
+      }
+      else{
+        return false;
+      }
+    }
+}
+
+void RecepcionSMSCodificado(){
+  if (letra =='*'){
+      if (val==0){
+        Serial.print("\n Inicia el almacenado \n ");
+      }
+      else{
+        Serial.print("\n Cerrando el almacenado \n ");
+        i=0;
+      }
+      val = val ^ 1;
+   }
+   if (val == 1){
+      if (letra !='*'){
+        cadena[i] = letra;
+        i++;
+      }
+    }
+}
+
+void LlamadaAlerta(){
+  mySerial.write("AT\r");
+  delay(500);
+  //Configura visualización en formato "texto" de SMS recividos
+  mySerial.write("ATD+51977614937\r");
+  delay(500);
+  delay(10000);
+  Serial.println("ATH");
+}
+
+void SMSAlerta(){
+  //mySerial.print("AT");
+  delay(500);
+  mySerial.print("AT+CMGS=\"+51977614937\"\r");  
+  delay(500);  
+  mySerial.println("Se roban tu bicicleta we :(");  
+  mySerial.print("\r");  
+  delay(500);  
+  mySerial.println((char)26);  
+  mySerial.println();
+}
+
+void AnalisisAlerta(){
+  promedio = sqrt((ax^2+ay^2+az^2));
+  if (abs(promedio-promedioAnt) > 30){
+      Serial.print("Alerta");
+      digitalWrite(12, HIGH);
+      //delay(500);
+      SMSAlerta();
+      //LlamadaAlerta();
+  }
+  else{
+    digitalWrite(12, LOW);
+  }
+  axA=ax;
+  ayA=ay;
+  azA=az;
+  promedioAnt = sqrt((axA^2+ayA^2+azA^2));
+  //delay(100);
+  
+}
+//Al inicio, es necesario enviar un "-OFF-".
+//Error 500 -> Está en llamada o dejando mensaje de voz -> Solución: Colgar a los 8 segundos
+// Buzzer se apaga cuando deja de moverse.
