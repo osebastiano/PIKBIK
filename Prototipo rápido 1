@@ -6,6 +6,23 @@
  *  
  */
 
+////****CONEXIONES****////
+// *MPU6050*
+//GND - GND
+//VCC - VCC
+//SDA - Pin A4
+//SCL - Pin A5
+// *MPU6050*
+//GND - GND
+//VCC - VCC
+//SDA - Pin A4
+//SCL - Pin A5
+// *MPU6050*
+//GND - GND
+//VCC - VCC
+//SDA - Pin A4
+//SCL - Pin A5
+
 
 ////****LIBRERÍAS****////
 #include "I2Cdev.h"
