@@ -1,0 +1,37 @@
+#include <SoftwareSerial.h>
+SoftwareSerial mySerial(10, 11); // RX, TX
+
+char cadenita[]="Te están robando la bicicleta we :(";
+
+void setup()
+{
+  // Open serial communications to computer
+  Serial.begin(9600);
+
+  mySerial.begin(9600); // Default for the board
+   
+  //Clear out any waiting serial data
+  while (mySerial.available())
+  {
+    mySerial.read();
+  }  
+
+  delay(2000);
+
+  
+}
+
+void loop()
+{
+  /*
+   * This loop just takes whatever comes in from the console and sends it to the board
+   */
+  if (Serial.available())
+  {
+    mySerial.write(Serial.read());
+  }
+  if (mySerial.available())
+  {
+    Serial.write(mySerial.read());
+  }
+}
